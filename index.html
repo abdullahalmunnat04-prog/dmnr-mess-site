@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DMNR Mess Payment Manager</title>
+<style>
+  body { font-family: Arial, sans-serif; background:#0b1220; color:#e6eef6; padding:20px; margin:0;}
+  .center-card{max-width:900px;margin:auto;background:#081421;padding:20px;border-radius:14px;text-align:center;}
+  h1{margin-bottom:10px;}
+  table{width:100%; border-collapse:collapse; margin-top:10px;}
+  th, td{border-bottom:1px solid rgba(255,255,255,0.1); padding:8px;}
+  th{color:#98a6b3;}
+  button{padding:6px 10px; border:none; border-radius:8px; cursor:pointer; margin:4px;}
+  .edit-btn{background:#ffd166; color:#022;}
+  .delete-btn{background:#ff6b6b; color:#fff;}
+  select, input[type="text"], input[type="number"], input[type="password"]{padding:6px; border-radius:6px; border:none; margin-bottom:6px; width:100%;}
+  .bold-dmnr{font-weight:900;font-size:36px; background: linear-gradient(90deg, #f94144, #f3722c, #f9c74f, #43aa8b, #577590); -webkit-background-clip: text; -webkit-text-fill-color: transparent; display:inline-block; margin-bottom:20px;}
+  .hidden{display:none;}
+  label{display:block;margin-top:10px;margin-bottom:4px; text-align:left;}
+  #paymentNumber {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    background: rgba(0,0,0,0.6);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #fff;
+    font-weight: bold;
+    z-index: 999;
+  }
+  .member-list button{
+    display:block;
+    width:80%;
+    margin:10px auto;
+    padding:10px;
+    font-size:18px;
+    background:#22c1c3;
+    color:#081421;
+    font-weight:bold;
+  }
+</style>
+</head>
+<body>
+
+<div class="center-card" id="loginCard">
+  <h1><span class="bold-dmnr">DMNR</span></h1>
+  <p>Login as manager or member.</p>
+  <label>Role:</label>
+  <select id="roleSelect">
+    <option value="manager">Manager</option>
+    <option value="member">Member</option>
+  </select>
+  <div id="memberSelectDiv">
+    <label>Member:</label>
+    <select id="memberSelect">
+      <option value="Kazi Rabbi">Kazi Rabbi</option>
+      <option value="Rabbi JR">Rabbi JR</option>
+      <option value="Munnat">Munnat</option>
+      <option value="Dip">Dip</option>
+      <option value="Nayon">Nayon</option>
+      <option value="Ramim">Ramim</option>
+      <option value="Rakib">Rakib</option>
+    </select>
+  </div>
+  <label>Password:</label>
+  <input type="password" id="passwordInput" placeholder="Enter password">
+  <button id="loginBtn">Login</button>
+</div>
+
+<div class="center-card hidden" id="dashboard">
+  <h1><span class="bold-dmnr">DMNR</span> Mess Payments</h1>
+  <button id="logoutBtn">Logout</button>
+  <div id="managerAddBtnDiv" class="hidden"><button id="addPaymentBtn">Add Payment</button></div>
+  <div class="member-list" id="memberButtons"></div>
+</div>
+
+<div class="center-card hidden" id="paymentListDiv">
+  <h2 id="memberNameTitle"></h2>
+  <button id="backBtn">← Back</button>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Month</th>
+        <th>Amount (৳)</th>
+        <th>Status</th>
+        <th>Payment Method</th>
+        <th>Note</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="paymentTableBody"></tbody>
+  </table>
+</div>
+
+<div class="center-card hidden" id="paymentFormDiv">
+  <h2>Add / Edit Payment</h2>
+  <label>Month:</label>
+  <input type="text" id="payMonth">
+  <label>Amount (৳):</label>
+  <input type="number" id="payAmount">
+  <label>Status:</label>
+  <select id="payStatus">
+    <option value="Paid">Paid</option>
+    <option value="Unpaid">Unpaid</option>
+  </select>
+  <label>Payment Method:</label>
+  <select id="payMethod">
+    <option value="bKash">bKash</option>
+    <option value="Nagad">Nagad</option>
+    <option value="Rocket">Rocket</option>
+    <option value="Upay">Upay</option>
+    <option value="Cash">Cash</option>
+  </select>
+  <label>Note:</label>
+  <input type="text" id="payNote">
+  <button id="savePaymentBtn">Save Payment</button>
+  <button id="cancelPaymentBtn">Cancel</button>
+</div>
+
+<div id="paymentNumber">
+  <p>Bkash/Nagad: 01884166247</p>
+</div>
+
+<script>
+let currentUser = null;
+let selectedMember = null;
+let editingIndex = null;
+
+const members = ["Kazi Rabbi","Rabbi JR","Munnat","Dip","Nayon","Ramim","Rakib"];
+const passwords = {
+  manager:"admin123",
+  "Kazi Rabbi":"1111",
+  "Rabbi JR":"2222",
+  "Munnat":"3333",
+  "Dip":"4444",
+  "Nayon":"5555",
+  "Ramim":"6666",
+  "Rakib":"7777"
+};
+let payments = JSON.parse(localStorage.getItem("dmnrPayments")||"[]");
+
+const loginCard = document.getElementById("loginCard");
+const dashboard = document.getElementById("dashboard");
+const paymentListDiv = document.getElementById("paymentListDiv");
+const paymentFormDiv = document.getElementById("paymentFormDiv");
+const memberSelectDiv = document.getElementById("memberSelectDiv");
+const memberButtonsDiv = document.getElementById("memberButtons");
+const addPaymentBtn = document.getElementById("addPaymentBtn");
+
+document.getElementById("roleSelect").addEventListener("change",function(){
+  memberSelectDiv.style.display = this.value==="member"?"block":"none";
+});
+
+document.getElementById("loginBtn").addEventListener("click",function(){
+  const role = document.getElementById("roleSelect").value;
+  const member = document.getElementById("memberSelect").value;
+  const pass = document.getElementById("passwordInput").value;
+  if(role==="manager" && member==="Kazi Rabbi" && pass===passwords.manager){
+    currentUser="manager"; showDashboard();
+  } else if(role==="member" && pass===passwords[member]){
+    currentUser=member; showDashboard();
+  } else { alert("Wrong password"); }
+});
+
+document.getElementById("logoutBtn").addEventListener("click",function(){
+  currentUser=null; selectedMember=null;
+  loginCard.classList.remove("hidden"); dashboard.classList.add("hidden"); paymentListDiv.classList.add("hidden"); paymentFormDiv.classList.add("hidden");
+});
+
+function showDashboard(){
+  loginCard.classList.add("hidden");
+  dashboard.classList.remove("hidden");
+  paymentListDiv.classList.add("hidden");
+  paymentFormDiv.classList.add("hidden");
+  document.getElementById("managerAddBtnDiv").style.display = currentUser==="manager"?"block":"none";
+
+  memberButtonsDiv.innerHTML="";
+  members.forEach(name=>{
+    const btn = document.createElement("button");
+    btn.textContent=name;
+    btn.onclick=()=>showMemberPayments(name);
+    memberButtonsDiv.appendChild(btn);
+  });
+}
+
+function showMemberPayments(name){
+  selectedMember=name;
+  dashboard.classList.add("hidden");
+  paymentListDiv.classList.remove("hidden");
+  document.getElementById("memberNameTitle").textContent=name+"'s Payments";
+  renderTable();
+}
+
+document.getElementById("backBtn").addEventListener("click",()=>{
+  paymentListDiv.classList.add("hidden");
+  showDashboard();
+});
+
+addPaymentBtn.addEventListener("click",()=>{
+  paymentFormDiv.classList.remove("hidden");
+  paymentListDiv.classList.add("hidden");
+  editingIndex=null;
+  document.getElementById("payMonth").value="";
+  document.getElementById("payAmount").value="";
+  document.getElementById("payStatus").value="Paid";
+  document.getElementById("payMethod").value="bKash";
+  document.getElementById("payNote").value="";
+});
+
+document.getElementById("cancelPaymentBtn").addEventListener("click",()=>{
+  paymentFormDiv.classList.add("hidden");
+  paymentListDiv.classList.remove("hidden");
+});
+
+document.getElementById("savePaymentBtn").addEventListener("click",()=>{
+  const data = {
+    name:selectedMember,
+    month: document.getElementById("payMonth").value,
+    amount: document.getElementById("payAmount").value,
+    status: document.getElementById("payStatus").value,
+    method: document.getElementById("payMethod").value,
+    note: document.getElementById("payNote").value
+  };
+  if(editingIndex!==null){ 
+    const filtered = payments.filter(p=>p.name===selectedMember);
+    const indexToEdit = payments.indexOf(filtered[editingIndex]);
+    payments[indexToEdit] = data;
+  } else { 
+    payments.push(data);
+  }
+  localStorage.setItem("dmnrPayments",JSON.stringify(payments));
+  paymentFormDiv.classList.add("hidden");
+  paymentListDiv.classList.remove("hidden");
+  renderTable();
+});
+
+function renderTable(){
+  const tbody=document.getElementById("paymentTableBody");
+  tbody.innerHTML="";
+  let filtered = payments.filter(p=>p.name===selectedMember);
+  filtered.forEach((p,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${i+1}</td>
+                  <td>${p.month}</td>
+                  <td>${p.amount}</td>
+                  <td>${p.status}</td>
+                  <td>${p.method}</td>
+                  <td>${p.note||""}</td>
+                  <td>${currentUser==="manager"?`<button class="edit-btn" onclick="editPayment(${i})">Edit</button>
+                      <button class="delete-btn" onclick="deletePayment(${i})">Delete</button>`:"-"}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function editPayment(i){
+  editingIndex=i;
+  const filtered = payments.filter(p=>p.name===selectedMember);
+  const p = filtered[i];
+  paymentFormDiv.classList.remove("hidden");
+  paymentListDiv.classList.add("hidden");
+  document.getElementById("payMonth").value=p.month;
+  document.getElementById("payAmount").value=p.amount;
+  document.getElementById("payStatus").value=p.status;
+  document.getElementById("payMethod").value=p.method;
+  document.getElementById("payNote").value=p.note;
+}
+
+function deletePayment(i){
+  const filtered = payments.filter(p=>p.name===selectedMember);
+  const indexToDelete = payments.indexOf(filtered[i]);
+  if(confirm("Delete this payment?")){
+    payments.splice(indexToDelete,1);
+    localStorage.setItem("dmnrPayments",JSON.stringify(payments));
+    renderTable();
+  }
+}
+</script>
+
+</body>
+</html>
